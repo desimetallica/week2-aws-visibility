@@ -2,7 +2,14 @@ provider "aws" {
   region = var.aws_region
 }
 
+# Get current account number
+data "aws_caller_identity" "current" {}
 
+#
+#
+# S3 Buckets
+#
+#
 resource "aws_s3_bucket" "cloudtrail_logs" {
   bucket = var.s3_bucket_name
   force_destroy = true
@@ -25,8 +32,6 @@ resource "aws_s3_bucket_ownership_controls" "cloudtrail_logs_ownership" {
     object_ownership = "BucketOwnerPreferred"
   }
 }
-
-data "aws_caller_identity" "current" {}
 
 resource "aws_s3_bucket_policy" "cloudtrail_logs_policy" {
   bucket = aws_s3_bucket.cloudtrail_logs.id
@@ -62,12 +67,22 @@ resource "aws_s3_bucket_policy" "cloudtrail_logs_policy" {
 }
 
 resource "aws_s3_bucket_acl" "cloudtrail_logs_acl" {
-  depends_on = [aws_s3_bucket_ownership_controls.cloudtrail_logs_ownership]
+  depends_on = [
+    aws_s3_bucket_ownership_controls.cloudtrail_logs_ownership
+  ]
 
   bucket = aws_s3_bucket.cloudtrail_logs.id
   acl    = "private"
 }
 
+
+
+
+#
+#
+# AWS CloudTrail 
+#
+#
 resource "aws_cloudtrail" "main" {
   depends_on = [
     aws_s3_bucket_policy.cloudtrail_logs_policy
