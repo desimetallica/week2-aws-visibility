@@ -5,7 +5,7 @@ This documentation covers the three main Terraform modules for AWS security in t
 - **terraform-security-config**
 - **terraform-security-iam-baseline**
 
----
+
 
 ## terraform-security-baseline
 
@@ -24,12 +24,81 @@ Sets up foundational AWS security resources, such as S3 buckets for CloudTrail l
    terraform init
    terraform apply -var-file=defaults.tfvars
    ```
+3. Download logs from s3 bucket:
+   ```
+   aws s3 sync s3://desirellod-ct-logs/AWSLogs/your-account-number-id/CloudTrail/eu-south-1/2025/12/19/ ./cloudtrail-logs
+   ```
 
-Download logs from s3 bucket:
+## Analyse CloudTrail Logs
+Reviewing CloudTrail logs for anomaly detection, these patterns actually matter during real incidents.
 
-aws s3 sync s3://desirellod-ct-logs/AWSLogs/your-account-number-id/CloudTrail/eu-south-1/2025/12/19/ ./cloudtrail-logs
+### Authentication & identity abuse
 
----
+AWS compromises starts from credential theft usually, not exploits. The event to check in logs are the ones related to Login and Roles.
+In AWS, authentication abuse usually falls into four concrete scenarios:
+1. Stolen credentials (password or access key)
+2. Session hijacking (temporary credentials abused)
+3. Role misuse (unexpected AssumeRole)
+4. Federation abuse (SSO / SAML / WebIdentity)
+
+Core authentication-related CloudTrail events are: ConsoleLogin, AssumeRole, Federation events and GetSessionToken.
+
+**ConsoleLogin**: check for MFAUsed = no, or login from new IPs or login at odd hours, it is important to check for patterns like Multiple failures and success, it means Password Guessing patterns.
+A useful jq filter to use in this case:
+
+```
+jq '.Records[]
+ | select(.eventName=="ConsoleLogin")
+ | {
+   time:.eventTime,
+   user:.userIdentity.userName,
+   ip:.sourceIPAddress,
+   mfa:.additionalEventData.MFAUsed
+ }'
+```
+
+**AssumeRole**: it's important to check because roles often are over-permissive and password is not needed. AssumeRole from IAM users or unexpected IPs and also Role Chaining are important pattern to check and could represent risk patterns. 
+A useful jq filter to use in this case:
+
+```
+jq '.Records[]
+ | select(.eventName=="AssumeRole")
+ | {
+   time:.eventTime,
+   caller:.userIdentity.arn,
+   role:.requestParameters.roleArn,
+   ip:.sourceIPAddress
+ }'
+```
+
+**Federation Events and GetSessionToken**: when using IAM Identity Center or OIDC the EventName to watch are:
+
+- AssumeRoleWithSAML
+- AssumeRoleWithWebIdentity
+- Authenticate
+
+Same patterns to check: unsual login hours or new IPs. The GetSessionToken returns a set of temporary credential for an AWS account or IAM user, often used to bypass MFA, is important to check human-user calling GetSessionToken and API usage from new IP pattern in this case.  
+A usuelful jq filter to use in this case:
+
+```
+jq '.Records[]
+ | select(.eventName=="ConsoleLogin" or .eventName=="AssumeRole" or .eventName=="AssumeRoleWithSAML" or .eventName=="AssumeRoleWithWebIdentity" or .eventName=="Authenticate")
+ | {time:.eventTime, event:.eventName, user:.userIdentity.arn, ip:.sourceIPAddress}'
+
+```
+
+**Checking IPs**: a first way to check logins to AWS is to check IPs login could be done with
+
+```
+jq -r '.Records[].sourceIPAddress' *.json | sort | uniq -c | sort -nr
+```
+
+### IAM privilege escalation
+
+### AccessDenied and Success correlation
+
+
+
 
 ## terraform-security-config
 
