@@ -93,6 +93,10 @@ jq '.Records[]
 jq -r '.Records[].sourceIPAddress' *.json | sort | uniq -c | sort -nr
 ```
 
+AWS internal usage could be ignored, lower IPs counts worth checking.
+
+
+
 ### IAM privilege escalation
 
 ### AccessDenied and Success correlation
