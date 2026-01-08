@@ -99,10 +99,81 @@ AWS internal usage could be ignored, lower IPs counts worth checking.
 
 ### IAM privilege escalation
 
+IAM privilege escalation is the part of incidet where attackers must go through to persist and expand control. Some way on IAM privilege escalation looks like are related to concrete ways:
+
+1. Attaching managed policies
+2. Creating inline policies
+3. Creating/rotating access keys
+4. Abusing AssumeRole
+5. Group membership abusing
+
+With CloutTrail is possibile to record and check those type of events.
+
+**Attaching managed policies**: attacching an Admin user policy like Administrator is what looking for. High-risk IAM events escalation indicators are:
+
+- AttachUserPolicy
+- AttachRolePolicy
+- AttachGroupPolicy 
+- PutUserPolicy
+- PutRolePolicy
+- PutGroupPolicy
+- CreateAccessKey
+- UdateAccessKey
+- UpdateAssumeRolePolicy
+
+**AttachUserPolicy/AttachRolePolicy/AttachGroupPolicy**: usually is related to an incident if outside normal usage, or if not planned, in example if AdministratorAccess or PowerUserAccess policy is attached could be an incident.
+
+**PutUserPolicy/PutRolePolicy/PutGroupPolicy**: usually inline policies do not show up in IAM console summaries. You must look for wildcard like "Action": "*", "resource": "*" and "Effect": "Allow"
+
+**CreateAccessKey/UpdateAccessKey**: access key creation and persistance mechanism is used to gain a persisting vector. Looking for key creation and then heavy API usage pattern as a bad pattern.
+
+**UpdateAssumeRolePolicy**: this is used to expand the access scope of attacker by adding AWS Account User or service to the trust policy of an existing IAM role. Next to this the attacker can assume role escalating privileges withint environment  
+
+**AddUserToGroup**: adding user to a group is classic way to privilege-escalation. It is critical because an attacker could escalade privileges without attacching policies bypassing AttachUserPolicy and PutUserPolicy.
+
 ### AccessDenied and Success correlation
 
+AccessDenied and Success correlation is a good indicator to check a real attacker behavior in general. THe pattern usually follows those steps:
+- Reconnaissance with denied calls
+- Followed by role assumption or permission pivot
+- Then successful enumeration
 
+THe Time-window correlation is an important factor to consider when checking for this kind of relationship. A good rule could be:
+- 1-5 miuntes: human escalation
+- <30 seconds: scripted attack
+- 1 hour: maybe legit admin activity
 
+The detection of AccessDenied and Success correlation its important. AccessDenied tell you the intent, Success tells you the capability, Intent + capability means compromising. 
+In "manual mode" you can find denied actions from CloudTrail logs:
+```
+jq -r '.Records[]
+ | select(.errorCode=="AccessDenied")
+ | "\(.userIdentity.arn)|\(.eventName)"' *.json \
+ | sort | uniq
+```
+
+Extract output like 
+
+```
+arn:aws:iam::137809406849:user/carol|AttachUserPolicy
+```
+
+Next step is to find later success for same actor and action:  
+
+```
+jq '.Records[]
+ | select(.userIdentity.arn=="arn:aws:iam::123:user/bob")
+ | select(.eventName=="AttachUserPolicy")
+ | select(.errorCode==null)
+ | {
+   time:.eventTime,
+   params:.requestParameters
+ }' *.json
+```
+
+### Defense Evasion and DeleteTrail
+
+ 
 
 ## terraform-security-config
 
