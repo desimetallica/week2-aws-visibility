@@ -96,7 +96,7 @@ jq -r '.Records[].sourceIPAddress' *.json | sort | uniq -c | sort -nr
 AWS internal usage could be ignored, lower IPs counts worth checking.
 
 
-
+---
 ### IAM privilege escalation
 
 IAM privilege escalation is the part of incidet where attackers must go through to persist and expand control. Some way on IAM privilege escalation looks like are related to concrete ways:
@@ -131,6 +131,14 @@ With CloutTrail is possibile to record and check those type of events.
 
 **AddUserToGroup**: adding user to a group is classic way to privilege-escalation. It is critical because an attacker could escalade privileges without attacching policies bypassing AttachUserPolicy and PutUserPolicy.
 
+**Management and Mitigation**
+
+* Limit IAM identity creation privileges
+* Enforce short-lived credentials
+* Regularly audit IAM users, roles, and keys
+
+
+---
 ### AccessDenied and Success correlation
 
 AccessDenied and Success correlation is a good indicator to check a real attacker behavior in general. THe pattern usually follows those steps:
@@ -173,11 +181,83 @@ jq '.Records[]
 
 ### Defense Evasion and DeleteTrail
 
- 
+ CloudTrail is a critical security control and must be protected against tampering. Actions such as DeleteTrail, StopLogging, and UpdateTrail can be abused to suppress or redirect audit logs after a compromise, reducing detection and forensic visibility. To preserve log integrity, these actions should be explicitly denied at the AWS Organizations SCP level, allowing exceptions only for a tightly controlled break-glass role. All CloudTrail trails should be organization-wide, multi-region, and configured to deliver logs to a central, immutable S3 bucket with MFA Delete and restricted write access. Any attempt to invoke these actions must be immediately alerted on via SIEM or CloudTrail Lake, as they represent high-confidence indicators of defense evasion rather than routine operations.
 
-## terraform-security-config
+ **Threat**
+Attackers disable, delete, or redirect logging to evade detection after gaining access.
 
-### Purpose
+**Detection**
+
+* CloudTrail alerts on `DeleteTrail`, `StopLogging`, and `UpdateTrail`
+* GuardDuty findings for disabled security services
+* AWS Config rules enforcing CloudTrail and logging configurations
+
+**Management and Mitigation**
+
+* Deny logging modifications via SCPs
+* Centralize logs in immutable S3 buckets
+* Trigger immediate alerts on any logging configuration changes
+
+
+### Controlling Security Group Modifications ModifySecurityGroup
+
+Security Group modifications (AuthorizeSecurityGroupIngress/Egress, RevokeSecurityGroup*) have immediate security impact and are a common technique to expose workloads, enable lateral movement, or bypass perimeter controls after a compromise. To reduce risk, these actions should be restricted via SCPs and IAM policies, permitting changes only through approved infrastructure-as-code pipelines or tightly scoped operational roles. Ingress rules allowing 0.0.0.0/0 or ::/0, especially on administrative or database ports, must be treated as high-risk events and continuously monitored. All Security Group changes should be logged via CloudTrail and correlated with VPC Flow Logs in a SIEM, as unauthorized or anomalous modifications are strong indicators of post-compromise exploitation rather than normal configuration activity.
+
+**Threat**
+Unauthorized network configuration changes expose resources or enable lateral movement within the environment.
+
+**Detection**
+
+* CloudTrail monitoring of Security Group modifications
+* AWS Config rules detecting open ingress (`0.0.0.0/0`, `::/0`)
+* Correlation of Security Group changes with VPC Flow Logs
+
+**Management and Mitigation**
+
+* Restrict network changes to approved infrastructure-as-code pipelines
+* Automatically remediate overly permissive rules
+* Enforce network segmentation and least-access principles
+
+
+## AWS Config as a Guardrail
+AWS Config is adopted as a security guardrail, not as a compliance or reporting-only service. Its primary purpose is prevention: stopping insecure configurations from persisting long enough to become exploitable. Compliance status is a by-product, not the goal. Each AWS Config rule exists to enforce a security boundary and to reduce a clearly defined risk within the AWS environment.
+
+### Risk-Driven Rule Design
+Every AWS Config rule must be directly mapped to a specific mitigated risk (for example: public network exposure, excessive IAM privileges, disabled logging, or unencrypted storage). Rules are not created to satisfy generic standards alone; they are implemented to block real attack paths. For this reason, each rule must have an explicit security rationale that explains what threat it mitigates and why that configuration is considered unsafe.
+
+### Meaning of Non-Compliant Resources
+A resource marked as non-compliant represents an active security condition, not an informational finding. Non-compliance must clearly describe:
+- the insecure configuration that was detected,
+- the risk introduced by that configuration,
+- the concrete action required to restore compliance.
+If a rule cannot guide an operator toward a specific remediation, it is considered incomplete and unsuitable for use as a guardrail.
+
+### Prevention Through Automation and Enforcement
+AWS Config becomes an effective preventive control when combined with automated remediation, Service Control Policies (SCPs), and infrastructure-as-code enforcement. SCPs are used to prevent high-risk configurations from being introduced in the first place, while CI/CD pipelines ensure that infrastructure changes comply with Config rules before deployment.
+
+### Operational Integration and Monitoring
+All AWS Config findings must be integrated with centralized monitoring and alerting systems. High-risk non-compliance events should generate immediate alerts and be correlated with CloudTrail and other telemetry sources. This ensures that misconfigurations are treated as potential security incidents and not deferred as routine configuration drift.
+
+**Guiding Principle**: The guiding principle is simple: AWS Config defines what “secure by default” means in this environment. Any deviation from those rules is treated as a security issue that requires timely remediation. By designing Config rules around risk, actionability, and enforcement, AWS Config serves as a foundational control for maintaining a defensible and resilient cloud posture. 
+
+### Data Exposure and Exfiltration mitigation
+One important AWS Config rule is designed to identify and prevent unintended data exposure by continuously evaluating the configuration of data storage resources within the AWS environment. It focuses on detecting misconfigurations or sharing settings that could allow unauthorized access to data stored in services such as Amazon S3, databases, snapshots, or backups. The rule supports early detection, compliance enforcement, and risk reduction by integrating with AWS-native monitoring and security services. 
+**Threat**
+Unauthorized access to or exposure of data stored in S3, databases, snapshots, or backups.
+
+**Detection**
+
+* AWS Config rules detecting public or shared resources
+* CloudTrail monitoring for snapshot and bucket sharing
+
+**Management and Mitigation**
+
+* Block public access by default
+* Encrypt data at rest and in transit
+* Restrict and monitor cross-account sharing
+
+---
+### Terraform AWS Config deploy
 Deploys AWS Config resources for compliance and resource change tracking.
 
 ### Features
@@ -196,7 +276,7 @@ Deploys AWS Config resources for compliance and resource change tracking.
 
 ---
 
-## terraform-security-iam-baseline
+## Terraform security IAM baseline
 
 ### Purpose
 Establishes a baseline IAM configuration for secure, role-based access control.
