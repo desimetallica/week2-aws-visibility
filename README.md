@@ -325,16 +325,11 @@ Establishes a baseline IAM configuration for secure, role-based access control.
 The scope of AWS IAM defines is to  **who can access resources and what actions they are allowed to perform**, moreover the real purpose goes beyond organization of users and groups. A well-defined IAM model and baseline exist primarily to **prevent abuse**, not just to order the things. By enforcing least privilege, separating roles across distinct groups (such as developers, infrastructure, and security), and eliminating unnecessary permissions, IAM limits the blast radius of compromised credentials, insider misuse, and operational mistakes. This role separation ensures that no single identity can be easily abused to perform unintended actions, even under incident-response pressure or automation failures. As a result, the IAM baseline becomes a defensive control that contains risk, improves auditability, and strengthens the overall security posture of the AWS environment.
 
 
----
-
 ## Lessons Learned
 
-- Cloud trail basic configuration.
-- Cloud trail basic analysis both from dashboard and downloading logs.
-- Parameterizing security resources in Terraform makes the configuration reusable and secure.
-- AWS config hands on on policies and security patterns to adopt on AWS landing zone.
-- tested Simple rules and checked compliancy into dashboard.
-- Always test user login and permissions to ensure least-privilege access is enforced.
-- Sensitive outputs (like passwords) should be handled carefully to avoid credential leaks.
-- AWS password policies may block password changes if not met—set a compliant policy in the AWS Console.
-- Documenting security baselines helps with onboarding and compliance.
+- Prioritized log centralization to ensure audit trails cannot be tampered with after an incident.
+- Adopted AWS Config rules to shift from reactive compliance to proactive risk prevention.
+- Enforced least-privilege IAM by default to minimize the blast radius of compromised credentials.
+- Log analysis to detect real attack patterns, understanding what are useful patterns for SIEM configuration.
+- Most common threats analyzed as a log pattern in order to consider detection and remediation.   
+
